@@ -1,0 +1,84 @@
+ var script = document.createElement('script');
+script.src = 'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.6.0/jszip.min.js';
+document.head.appendChild(script);
+
+// Function to fetch HTML content from a URL
+const fetchHTML = (url) => {
+    return fetch(url)
+        .then(response => response.text())
+        .catch(error => {
+            console.error('Failed to fetch product page!', error);
+            throw error;
+        });
+};
+
+// Function to extract image URLs from HTML content
+const extractImageUrls = (html) => {
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+    const images = doc.querySelectorAll('img');
+    const urls = Array.from(images).map(img => img.src);
+    return urls;
+};
+
+// Function to download an image given its URL
+const downloadImage = (url) => {
+    return fetch(url)
+        .then(response => response.blob())
+        .then(blob => {
+            // Extract filename from URL
+            let filename = url.substring(url.lastIndexOf('/') + 1);
+            
+            // Remove query parameters (if any)
+            if (filename.indexOf('?') !== -1) {
+                filename = filename.split('?')[0];
+            }
+
+            // Remove any unwanted characters (example: '&width=416')
+            filename = filename.replace(/[^a-zA-Z0-9.]/g, '');
+
+            return { filename, blob };
+        })
+        .catch(error => {
+            console.error('Image download failed!', error);
+            throw error;
+        });
+};
+
+// Function to zip images using JSZip
+const zipImages = (images) => {
+    const zip = new JSZip();
+
+    images.forEach(image => {
+        zip.file(image.filename, image.blob);
+    });
+
+    return zip.generateAsync({ type: 'blob' });
+};
+
+// Function to trigger download of the zip file
+const downloadZip = (zipBlob) => {
+    const url = window.URL.createObjectURL(zipBlob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'images.zip';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+};
+
+// Main function to orchestrate the image download and zipping process
+const downloadAllImages = (productUrl) => {
+    fetchHTML(productUrl)
+        .then(html => {
+            const imageUrls = extractImageUrls(html);
+            const downloadPromises = imageUrls.map(url => downloadImage(url));
+            return Promise.all(downloadPromises);
+        })
+        .then(images => zipImages(images))
+        .then(zipBlob => downloadZip(zipBlob))
+        .catch(error => console.error('Error downloading images:', error));
+};
+
+// Example usage: Replace with the URL of the product page you want to scrape
+const productUrl = 'https://alykayeessentials.com/products/goddess-glow-lip-oil-3';
+downloadAllImages(productUrl);
